@@ -1,5 +1,6 @@
 #include "Data.hpp"
 #include "Methods.hpp"
+#include "linalg/linalg.hpp"
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
@@ -15,6 +16,11 @@ int main(int argc, char* argv[]) {
         maxIter = atoi(argv[3]);
         eps = atof(argv[4]);
     }
+
+    std::cout << "---Parameters\n"
+              << "(N, M) = (" << N << ',' << ' ' << M << ")\n"
+              << "Max iterations: " << maxIter << '\n'
+              << "eps: " << eps << '\n';
 
     const double h = 2.l / N, k = 1.l / M, hsq = h * h, ksq = k * k;
 
@@ -78,7 +84,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    double F[dims[0]];
+    std::vector<double> F(dims[0]);
 
     size_t d = 0;
     for (size_t j = 1; j < M; j++) {
@@ -88,15 +94,15 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::cout << "linear system:\n";
+    std::cout << "---linear system:\n";
     for (size_t i = 0; i < dims[0]; i++) {
         for (size_t j = 0; j < dims[1]; j++) {
             std::cout << A[i][j] << ' ';
         }
-        std::cout << " | " << F[i] <<'\n';
+        std::cout << " | " << F[i] << '\n';
     }
 
-    double V[dims[0]];
+    std::vector<double> V(dims[0]);
 
     for (size_t i = 0; i < dims[0]; i++) {
         V[i] = 0.l;
@@ -104,12 +110,37 @@ int main(int argc, char* argv[]) {
 
     SeidelMethod(A, F, V, dims[0], maxIter, eps);
 
-    std::cout << "Solution from Seidel:\n";
-    for (size_t i = 0; i <dims[0]; i++) {
+    std::cout << "---Solution from Seidel:\n";
+    for (size_t i = 0; i < dims[0]; i++) {
         std::cout << V[i] << '\n';
     }
 
-    std::cout << "Result vector is" << '\n';
+    double residual = residual_norm(A, V, F, dims[0]);
+    std::cout << "Residual 2-morm: " << residual << '\n';
+
+    std::vector<std::vector<double>> vec(dims[0], std::vector<double>(dims[1]));
+    std::vector<double> lambdas(dims[0]);
+    double* D = lambdas.data();
+    std::vector<double> a(dims[0] * dims[1]);
+    double* aptr = a.data();
+    for (size_t i = 0; i < dims[0]; i++) {
+        for (size_t j = 0; j < dims[1]; j++) {
+            a[i + j * dims[0]] = A[i][j];
+        }
+    }
+
+    int it_max = 50, it_num = 0, rot_num = 0;
+    std::vector<double> vv(dims[0] * dims[0]);
+    double* vvptr = vv.data();
+    jacobi_eigenvalue(dims[0], aptr, it_max, vvptr, D, it_num, rot_num);
+
+    double minLambdaAbs = find_abs_min(lambdas, dims[0]);
+    std::cout << "invA norm approx: " << 1 / minLambdaAbs << '\n';
+    double topest = residual / minLambdaAbs;
+
+    std::cout << "Top estimation: " << topest << '\n';
+
+    std::cout << "---Result vector is" << '\n';
     double X[(N + 1)][(M + 1)];
 
     for (size_t j = 0; j < M + 1; j++) {
@@ -127,10 +158,25 @@ int main(int argc, char* argv[]) {
         std::cout << '\n';
     }
 
-    std::cout << "Output diff\n";
+    double max_diff = 0.l;
+    double diff = 0.l;
+    std::cout << "---Output diff\n";
     for (size_t j = 0; j < M + 1; j++) {
         for (size_t i = 0; i < N + 1; i++) {
-            std::cout << std::abs(X[i][j] - u(i * h, j * k)) << '\t';
+            diff = std::abs(X[i][j] - u(i * h, j * k));
+            std::cout << diff << '\t';
+
+            max_diff = diff > max_diff ? diff : max_diff;
+        }
+        std::cout << '\n';
+    }
+
+    std::cout << "Max diff: " << max_diff << '\n';
+
+    std::cout << "---True solution:\n";
+    for (size_t j = 0; j < M + 1; j++) {
+        for (size_t i = 0; i < N + 1; i++) {
+            std::cout << u(i * h, j * k) << '\t';
         }
         std::cout << '\n';
     }
