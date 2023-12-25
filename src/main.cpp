@@ -18,6 +18,10 @@ int main(int argc, char* argv[]) {
 
     const double h = 2.l / N, k = 1.l / M, hsq = h * h, ksq = k * k;
 
+    auto u = [](const double& x, const double& y) -> double {
+        return 1 - (x - 1) * (x - 1) - (0.5 - y) * (0.5 - y);
+    };
+
     auto mu12 = [](const double& x) -> double {
         double res = (x - 0.5);
         res *= res;
@@ -74,11 +78,22 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    double F[dims[0]];
+
+    size_t d = 0;
+    for (size_t j = 1; j < M; j++) {
+        for (size_t i = 1; i < N; i++) {
+            F[d] = f(i, j);
+            d++;
+        }
+    }
+
+    std::cout << "linear system:\n";
     for (size_t i = 0; i < dims[0]; i++) {
         for (size_t j = 0; j < dims[1]; j++) {
             std::cout << A[i][j] << ' ';
         }
-        std::cout << '\n';
+        std::cout << " | " << F[i] <<'\n';
     }
 
     double V[dims[0]];
@@ -86,43 +101,38 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < dims[0]; i++) {
         V[i] = 0.l;
     }
-    double F[dims[0]];
-
-    size_t i = 1, j = 1;
-    for (size_t k = 0; k < dims[0]; k++) {
-        F[k] = f(i, j);
-        i++;
-        if (i % s == 0) {
-            i = 1;
-            j++;
-        }
-        std::cout << F[k] << '\n';
-    }
 
     SeidelMethod(A, F, V, dims[0], maxIter, eps);
 
-    for (size_t i = 0; i < dims[0]; i++) {
+    std::cout << "Solution from Seidel:\n";
+    for (size_t i = 0; i <dims[0]; i++) {
         std::cout << V[i] << '\n';
     }
 
     std::cout << "Result vector is" << '\n';
-    double X[M * N];
-    i = 0;
-    j = 0;
-    for (size_t k = 0; k < M * N; k++) {
-        if (i == 0 || i == N) {
-            X[k] = mu12(j * k);
-        } else if (j == 0 || j == M) {
-            X[k] = mu34(i * h);
-        } else {
-            X[k] = V[(i - 1) + (j - 1) * (M - 1)];
+    double X[(N + 1)][(M + 1)];
+
+    for (size_t j = 0; j < M + 1; j++) {
+        for (size_t i = 0; i < N + 1; i++) {
+            if (i == 0 || i == N) {
+                X[i][j] = mu12(j * k);
+            } else if (j == 0 || j == M) {
+                X[i][j] = mu34(i * h);
+            } else {
+                X[i][j] = V[(i - 1) + (j - 1) * (N - 1)];
+            }
+
+            std::cout << X[i][j] << '\t';
         }
-        i++;
-        if (i % N == 0) {
-            i = 0;
-            j++;
+        std::cout << '\n';
+    }
+
+    std::cout << "Output diff\n";
+    for (size_t j = 0; j < M + 1; j++) {
+        for (size_t i = 0; i < N + 1; i++) {
+            std::cout << std::abs(X[i][j] - u(i * h, j * k)) << '\t';
         }
-        std::cout << X[k] << '\n';
+        std::cout << '\n';
     }
 
     return 0;
